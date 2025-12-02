@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiClient } from '@/api/client'
+import FlowEditor from '@/components/flows/FlowEditor'
 
 interface Flow {
   id: string
@@ -20,6 +21,8 @@ export default function FlowsPage() {
   const [flows, setFlows] = useState<Flow[]>([])
   const [flowStatuses, setFlowStatuses] = useState<Record<string, FlowStatus>>({})
   const [loading, setLoading] = useState(true)
+  const [showEditor, setShowEditor] = useState(false)
+  const [editingFlowId, setEditingFlowId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     fetchFlows()
@@ -102,8 +105,36 @@ export default function FlowsPage() {
     }
   }
 
+  const handleCreateFlow = () => {
+    setEditingFlowId(undefined)
+    setShowEditor(true)
+  }
+
+  const handleEditorSave = async () => {
+    setShowEditor(false)
+    setEditingFlowId(undefined)
+    await fetchFlows()
+  }
+
+  const handleEditorCancel = () => {
+    setShowEditor(false)
+    setEditingFlowId(undefined)
+  }
+
   if (loading) {
     return <div className="p-8">Loading...</div>
+  }
+
+  if (showEditor) {
+    return (
+      <div className="p-8">
+        <FlowEditor
+          flowId={editingFlowId}
+          onSave={handleEditorSave}
+          onCancel={handleEditorCancel}
+        />
+      </div>
+    )
   }
 
   return (
@@ -111,7 +142,7 @@ export default function FlowsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Flows</h1>
         <button
-          onClick={() => alert('Flow creation UI coming soon!')}
+          onClick={handleCreateFlow}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
         >
           ➕ Create Flow
@@ -122,7 +153,7 @@ export default function FlowsPage() {
         <div className="bg-gray-800 rounded-lg p-12 text-center">
           <p className="text-gray-400 text-lg mb-4">No flows configured</p>
           <button
-            onClick={() => alert('Flow creation UI coming soon!')}
+            onClick={handleCreateFlow}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
           >
             Create Your First Flow
