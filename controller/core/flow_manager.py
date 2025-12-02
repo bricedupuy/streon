@@ -233,10 +233,45 @@ class FlowManager:
             raise ValueError("Flow must have at least one output")
 
     def _generate_liquidsoap_script(self, flow_config: FlowConfig, script_path: Path):
-        """Generate Liquidsoap script from template"""
-        # For now, create a basic script
-        # TODO: Use Jinja2 template when we create it
+        """Generate Liquidsoap script from Jinja2 template"""
+        template_path = self.liquidsoap_templates_dir / "flow.liq.j2"
 
+        # Get StereoTool preset path if enabled
+        stereotool_preset_path = ""
+        if flow_config.processing.stereotool.enabled and flow_config.processing.stereotool.preset:
+            preset_path = self.stereotool_mgr.get_preset_path(flow_config.processing.stereotool.preset)
+            if preset_path:
+                stereotool_preset_path = str(preset_path)
+
+        # Check if template exists
+        if template_path.exists():
+            # Use Jinja2 template
+            with open(template_path, 'r') as f:
+                template_content = f.read()
+
+            template = Template(template_content)
+            script_content = template.render(
+                flow=flow_config,
+                stereotool_preset_path=stereotool_preset_path,
+                timestamp=datetime.utcnow().isoformat(),
+                enumerate=enumerate
+            )
+        else:
+            # Fallback to basic script generation
+            logger.warning(f"Template not found: {template_path}, using basic script")
+            script_content = self._generate_basic_script(flow_config, stereotool_preset_path)
+
+        # Write script
+        with open(script_path, 'w') as f:
+            f.write(script_content)
+
+        # Make executable
+        script_path.chmod(0o755)
+
+        logger.info(f"Generated Liquidsoap script: {script_path}")
+
+    def _generate_basic_script(self, flow_config: FlowConfig, stereotool_preset_path: str) -> str:
+        """Generate basic Liquidsoap script without template"""
         script_content = f"""#!/usr/bin/liquidsoap
 
 # Flow: {flow_config.id}
@@ -260,28 +295,20 @@ settings.log.level.set(4)
         script_content += "])\n"
 
         # StereoTool processing
-        if flow_config.processing.stereotool.enabled:
-            preset_path = self.stereotool_mgr.get_preset_path(flow_config.processing.stereotool.preset)
-            if preset_path:
-                script_content += f'\n# StereoTool processing\nsource = stereotool(preset="{preset_path}", source)\n'
+        if stereotool_preset_path:
+            script_content += f'\n# StereoTool processing\nsource = stereotool(preset="{stereotool_preset_path}", source)\n'
 
         # Output to FIFO for FFmpeg
         if flow_config.outputs.srt:
-            fifo_path = f"/tmp/streon_{flow_config.id}.fifo"
-            script_content += f'\n# Output to FIFO for FFmpeg\noutput.file(%wav, "{fifo_path}", source)\n'
+            for idx in range(len(flow_config.outputs.srt)):
+                fifo_path = f"/tmp/streon_{flow_config.id}_srt{idx}.fifo"
+                script_content += f'\n# Output to FIFO for FFmpeg\noutput.file(%wav, "{fifo_path}", source)\n'
 
         # ALSA outputs
         for alsa_output in flow_config.outputs.alsa:
             script_content += f'\n# ALSA output\noutput.alsa(device="{alsa_output.device}", source)\n'
 
-        # Write script
-        with open(script_path, 'w') as f:
-            f.write(script_content)
-
-        # Make executable
-        script_path.chmod(0o755)
-
-        logger.info(f"Generated Liquidsoap script: {script_path}")
+        return script_content
 
     def _start_liquidsoap(self, flow_id: str) -> int:
         """Start Liquidsoap process"""

@@ -1,0 +1,182 @@
+#!/usr/bin/liquidsoap
+
+# ==================================================
+# Streon Flow: {{ flow.name }}
+# Flow ID: {{ flow.id }}
+# Generated: {{ timestamp }}
+# ==================================================
+
+# Logging configuration
+settings.log.level.set(4)
+settings.log.file.set(true)
+settings.log.file.path.set("/var/log/streon/liquidsoap-{{ flow.id }}.log")
+
+# ==================================================
+# Input Sources
+# ==================================================
+
+{% for idx, input in enumerate(flow.inputs) %}
+# Input {{ idx }}: {{ input.type }} (Priority: {{ input.priority }})
+{% if input.type in ['alsa', 'usb', 'inferno_rx'] %}
+input_{{ idx }} = input.alsa(
+    device="{{ input.device }}",
+    clock_safe=false
+)
+{% elif input.type == 'srt' %}
+input_{{ idx }} = input.srt(
+    "{{ input.srt_url }}"
+)
+{% elif input.type == 'file' %}
+input_{{ idx }} = playlist(
+    "{{ input.file_path }}",
+    mode="normal",
+    reload_mode="watch"
+)
+{% endif %}
+
+{% endfor %}
+
+# ==================================================
+# Fallback Logic
+# ==================================================
+
+# Sort inputs by priority and create fallback chain
+source = fallback(
+    track_sensitive=false,
+    [{% for idx in range(flow.inputs|length) %}input_{{ idx }}{% if not loop.last %}, {% endif %}{% endfor %}]
+)
+
+# ==================================================
+# Audio Processing
+# ==================================================
+
+{% if flow.processing.stereotool.enabled and flow.processing.stereotool.preset %}
+# StereoTool Processing
+source = stereotool(
+    preset="{{ stereotool_preset_path }}",
+    source
+)
+{% endif %}
+
+{% if flow.processing.crossfade %}
+# Crossfade
+source = crossfade(
+    duration={{ flow.processing.crossfade_duration_s }},
+    source
+)
+{% endif %}
+
+# ==================================================
+# Silence Detection
+# ==================================================
+
+{% if flow.monitoring.silence_detection %}
+# Silence detection
+def on_silence_start() =
+    log("SILENCE DETECTED!")
+    system("curl -X POST http://localhost:8000/api/v1/flows/{{ flow.id }}/alert/silence")
+end
+
+def on_silence_end() =
+    log("SILENCE ENDED")
+end
+
+source = on_blank(
+    threshold={{ flow.processing.silence_detection.threshold_dbfs }},
+    max_blank={{ flow.processing.silence_detection.duration_s }}.,
+    on_noise=on_silence_end,
+    on_blank=on_silence_start,
+    source
+)
+{% endif %}
+
+# ==================================================
+# Audio Metering
+# ==================================================
+
+{% if flow.monitoring.metering %}
+# Audio level metering
+def send_levels() =
+    peak_l = source.rms()
+    peak_r = source.rms()
+    # Send levels to controller every 1 second
+    # TODO: Implement proper metering
+end
+
+# Call send_levels periodically
+thread.run(delay=1., send_levels)
+{% endif %}
+
+# ==================================================
+# Metadata Extraction
+# ==================================================
+
+{% if flow.metadata.enabled %}
+# Metadata extraction
+def on_metadata(m) =
+    artist = m["artist"]
+    title = m["title"]
+    album = m["album"]
+
+    log("Metadata: #{artist} - #{title}")
+
+{% if flow.metadata.rest_endpoint %}
+    # Send to controller via REST
+    cmd = "curl -X POST http://localhost:8000/api/v1/metadata/{{ flow.id }} -H 'Content-Type: application/json' -d '{\"artist\": \"#{artist}\", \"title\": \"#{title}\", \"album\": \"#{album}\" }'"
+    system(cmd)
+{% endif %}
+end
+
+source = on_track(on_metadata, source)
+{% endif %}
+
+# ==================================================
+# Outputs
+# ==================================================
+
+{% if flow.outputs.srt %}
+{% for idx, srt in enumerate(flow.outputs.srt) %}
+# SRT Output {{ idx }}: {{ srt.mode }} to {{ srt.host }}:{{ srt.port }}
+# Output to FIFO for FFmpeg to encode
+output.file(
+    %wav(stereo=true, samplerate={{ flow.inputs[0].sample_rate }}),
+    "/tmp/streon_{{ flow.id }}_srt{{ idx }}.fifo",
+    fallible=true,
+    source
+)
+{% endfor %}
+{% endif %}
+
+{% for idx, alsa in enumerate(flow.outputs.alsa) %}
+# ALSA Output {{ idx }}: {{ alsa.device }}
+output.alsa(
+    device="{{ alsa.device }}",
+    fallible=true,
+    source
+)
+{% endfor %}
+
+# ==================================================
+# GPIO Support
+# ==================================================
+
+{% if flow.gpio.tcp_input %}
+# TCP GPIO Input on port {{ flow.gpio.tcp_input_port }}
+def gpio_tcp_handler(data) =
+    log("GPIO TCP received: #{data}")
+    # TODO: Handle GPIO commands
+end
+
+# TODO: Set up TCP server for GPIO
+{% endif %}
+
+{% if flow.gpio.http_input %}
+# HTTP GPIO Input on port {{ flow.gpio.http_input_port }}
+# TODO: Set up HTTP server for GPIO
+{% endif %}
+
+# ==================================================
+# Flow Initialization Complete
+# ==================================================
+
+log("Flow {{ flow.id }} initialized and running")
