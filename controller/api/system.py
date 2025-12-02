@@ -1,11 +1,12 @@
 """System API endpoints"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 import psutil
 from datetime import datetime
 import logging
 
 from models.config import SystemHealth
+from monitoring.prometheus import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,18 @@ async def get_prometheus_metrics():
     """
     Prometheus metrics endpoint
 
-    Returns metrics in Prometheus format
+    Returns metrics in Prometheus format for scraping by Prometheus server
     """
-    # TODO: Implement Prometheus metrics exporter
-    return {"note": "Prometheus metrics not yet implemented"}
+    # Update system metrics before generating output
+    metrics_collector.update_system_metrics()
+
+    # Generate metrics in Prometheus text format
+    metrics_data = metrics_collector.generate_metrics()
+
+    return Response(
+        content=metrics_data,
+        media_type=metrics_collector.get_content_type()
+    )
 
 
 @router.get("/system/logs")

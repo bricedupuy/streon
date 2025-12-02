@@ -19,6 +19,9 @@ prometheus-client>=0.19.0
 # WebSocket support
 websockets>=12.0
 
+# HTTP server for GPIO daemon
+aiohttp>=3.9.0
+
 # Template engine (for Liquidsoap scripts)
 jinja2>=3.1.0
 

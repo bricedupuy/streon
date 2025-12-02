@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 
-from api import flows, devices, stereotool, system
+from api import flows, devices, stereotool, system, metadata
 from core.config_manager import ConfigManager
+from core.metadata_service import metadata_service
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +31,10 @@ async def lifespan(app: FastAPI):
     config_mgr = ConfigManager()
     app.state.config = config_mgr.load_global_config()
 
+    # Start metadata service
+    logger.info("Starting Metadata Service...")
+    await metadata_service.start()
+
     logger.info(f"Controller listening on {app.state.config.controller_host}:{app.state.config.controller_port}")
     logger.info("Streon Controller started successfully")
 
@@ -37,6 +42,10 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("Shutting down Streon Controller...")
+
+    # Stop metadata service
+    logger.info("Stopping Metadata Service...")
+    await metadata_service.stop()
 
 
 # Create FastAPI application
@@ -76,6 +85,7 @@ async def root():
 app.include_router(flows.router, prefix="/api/v1", tags=["Flows"])
 app.include_router(devices.router, prefix="/api/v1", tags=["Devices"])
 app.include_router(stereotool.router, prefix="/api/v1", tags=["StereoTool"])
+app.include_router(metadata.router, prefix="/api/v1", tags=["Metadata"])
 app.include_router(system.router, prefix="/api/v1", tags=["System"])
 
 
