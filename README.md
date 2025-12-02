@@ -197,23 +197,25 @@ Access monitoring dashboards:
 
 **Implemented**:
 - ✅ Python FastAPI backend with REST API
-- ✅ React + TypeScript Web UI
-- ✅ Flow lifecycle management
-- ✅ Device discovery (ALSA/USB)
-- ✅ StereoTool preset/license management
-- ✅ Liquidsoap script generation
-- ✅ FFmpeg SRT transport wrappers
-- ✅ Systemd service templates
+- ✅ React + TypeScript Web UI with all core pages
+- ✅ Flow lifecycle management (create, start, stop, restart, delete)
+- ✅ Flow creation/editing UI (comprehensive form)
+- ✅ Device discovery (ALSA/USB/Dante)
+- ✅ StereoTool preset/license management (upload, list, assign)
+- ✅ Liquidsoap script generation (Jinja2 templates)
+- ✅ FFmpeg SRT transport wrappers (Opus/AAC/PCM)
+- ✅ GPIO daemon (TCP/HTTP automation control)
+- ✅ Metadata service (WebSocket streaming)
+- ✅ Prometheus metrics exporter (25+ metrics)
+- ✅ Systemd service templates (7 services)
 - ✅ Installation scripts for Debian 13
 
 **In Development**:
-- 🚧 Inferno AoIP integration (testing required)
-- 🚧 GPIO daemon (TCP/HTTP)
-- 🚧 Metadata service (WebSocket)
-- 🚧 Prometheus metrics exporter
-- 🚧 Grafana dashboards
-- 🚧 Flow creation UI
-- 🚧 Real-time monitoring UI
+- 🚧 Real-time monitoring dashboard UI (audio meters, SRT stats)
+- 🚧 Grafana dashboards (JSON definitions)
+- 🚧 Dante/Inferno AoIP integration (hardware testing required)
+- 🚧 Dante control panel UI
+- 🚧 Network configuration UI
 
 ## License
 
