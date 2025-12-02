@@ -1,0 +1,38 @@
+[Unit]
+Description=Liquidsoap Flow %i
+Documentation=https://www.liquidsoap.info/
+After=inferno.service network.target
+Wants=inferno.service
+
+[Service]
+Type=simple
+User=streon
+Group=audio
+WorkingDirectory=/opt/streon/flows/%i
+
+# Create FIFO pipes before starting
+ExecStartPre=/bin/mkdir -p /tmp/streon
+ExecStartPre=/bin/sh -c 'for fifo in /tmp/streon_%i*.fifo; do [ -e "$fifo" ] && rm -f "$fifo"; done; exit 0'
+
+# Start Liquidsoap
+ExecStart=/opt/streon/liquidsoap/bin/liquidsoap /opt/streon/flows/%i/script.liq
+
+# Cleanup FIFOs on stop
+ExecStopPost=/bin/sh -c 'for fifo in /tmp/streon_%i*.fifo; do [ -e "$fifo" ] && rm -f "$fifo"; done; exit 0'
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/streon/liquidsoap-%i.log
+StandardError=append:/var/log/streon/liquidsoap-%i.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=false
+
+# Real-time priority for audio processing
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+Nice=-10
+
+[Install]
+WantedBy=multi-user.target

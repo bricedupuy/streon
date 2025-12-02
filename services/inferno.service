@@ -1,0 +1,25 @@
+[Unit]
+Description=Inferno AoIP Engine
+Documentation=https://gitlab.com/lumifaza/inferno
+After=statime.service network.target
+Requires=statime.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/inferno/bin/inferno -c /opt/inferno/config/inferno.toml
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Increase real-time priority for audio
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

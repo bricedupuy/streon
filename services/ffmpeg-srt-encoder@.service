@@ -1,0 +1,30 @@
+[Unit]
+Description=FFmpeg SRT Encoder for Flow %i
+Documentation=https://ffmpeg.org/
+After=liquidsoap@%i.service
+Requires=liquidsoap@%i.service
+PartOf=liquidsoap@%i.service
+
+[Service]
+Type=simple
+User=streon
+Group=audio
+WorkingDirectory=/opt/streon/flows/%i
+
+# Use wrapper script that reads Flow config and launches FFmpeg
+ExecStart=/opt/streon/scripts/ffmpeg-encoder-wrapper.sh %i
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/streon/ffmpeg-encoder-%i.log
+StandardError=append:/var/log/streon/ffmpeg-encoder-%i.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=false
+
+# Real-time priority
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

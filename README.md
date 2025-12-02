@@ -26,36 +26,72 @@ Streon is a Linux-based, modular audio engine designed for professional radio op
 
 ## Quick Start
 
-### Installation
+### Production Installation (Debian 13)
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/streon.git
+git clone https://github.com/bricedupuy/streon.git
 cd streon
 
-# Run installer (Debian 13 only)
+# Make installation script executable
+chmod +x install/debian-13-install.sh
+
+# Run master installer (interactive)
 sudo ./install/debian-13-install.sh
 ```
 
-### Development
+The installer will:
+1. Install system dependencies
+2. Build Liquidsoap 2.4.0 from source
+3. Build FFmpeg with SRT support
+4. Optionally install Inferno AoIP (Dante/AES67)
+5. Set up Python controller with FastAPI
+6. Install systemd services
+7. Optionally install Prometheus + Grafana
+8. Create initial configuration
+
+After installation:
 
 ```bash
-# Start backend
+# Start the controller
+sudo systemctl start streon-controller
+
+# Access the Web UI
+# Open http://your-server-ip:8000 in your browser
+
+# Create your first Flow
+/opt/streon/scripts/flow-create.sh my_first_flow
+
+# Start the Flow
+sudo systemctl start liquidsoap@my_first_flow
+sudo systemctl start ffmpeg-srt-encoder@my_first_flow
+
+# Check system health
+/opt/streon/scripts/health-check.sh
+```
+
+### Development Setup
+
+For development without full installation:
+
+```bash
+# Backend (Python FastAPI)
 cd controller
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# Start frontend (in another terminal)
+# Frontend (React + TypeScript) - in another terminal
 cd web-ui
 npm install
 npm run dev
 ```
 
-Access the Web UI at `http://localhost:5173`
-
-API documentation at `http://localhost:8000/docs`
+Access:
+- Web UI: [http://localhost:5173](http://localhost:5173)
+- API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- API: [http://localhost:8000/api/v1](http://localhost:8000/api/v1)
 
 ## Architecture
 
@@ -84,25 +120,104 @@ Each Flow includes:
 - **Web UI** - React-based configuration interface
 - **Prometheus/Grafana** - Metrics and visualization
 
-## Documentation
+## Configuration
 
-- [Installation Guide](docs/installation.md)
-- [Quick Start](docs/quickstart.md)
-- [Flow Configuration](docs/flow-configuration.md)
-- [Inferno AoIP Setup](docs/inferno-setup.md)
-- [API Reference](docs/api-reference.md)
-- [Troubleshooting](docs/troubleshooting.md)
+### StereoTool Integration
+
+Streon supports StereoTool for broadcast audio processing:
+
+1. Upload your StereoTool license via Web UI (Settings → StereoTool)
+2. Upload preset files (.sts) via Web UI
+3. Assign presets to Flows in Flow configuration
+
+### Flow Management
+
+Create Flows via Web UI or REST API:
+
+```bash
+# Via Web UI
+# Navigate to Flows → Create Flow
+
+# Via CLI helper script
+/opt/streon/scripts/flow-create.sh my_flow
+
+# Via API
+curl -X POST http://localhost:8000/api/v1/flows \
+  -H "Content-Type: application/json" \
+  -d @my_flow_config.json
+```
+
+### Service Management
+
+```bash
+# Controller service
+sudo systemctl start streon-controller
+sudo systemctl status streon-controller
+sudo journalctl -u streon-controller -f
+
+# Flow services (per-Flow)
+sudo systemctl start liquidsoap@flow_id
+sudo systemctl start ffmpeg-srt-encoder@flow_id
+
+# Inferno AoIP (if installed)
+sudo systemctl start statime
+sudo systemctl start inferno
+sudo journalctl -u inferno -f
+
+# Check all services
+/opt/streon/scripts/health-check.sh
+```
+
+## Monitoring
+
+Access monitoring dashboards:
+
+- **Prometheus**: [http://localhost:9090](http://localhost:9090)
+- **Grafana**: [http://localhost:3000](http://localhost:3000) (default: admin/admin)
+- **Metrics API**: [http://localhost:8000/api/v1/system/metrics](http://localhost:8000/api/v1/system/metrics)
 
 ## System Requirements
 
+### Minimum
 - Debian 13 (x64 or aarch64)
-- Minimum 4GB RAM (8GB recommended for multiple Flows)
-- Dedicated network interface for Dante/AES67 (optional)
-- PTP-capable switch for Dante networks (optional)
+- 4GB RAM
+- 20GB disk space
+- 1Gbps network interface
+
+### Recommended (Multi-Flow Production)
+- 8GB+ RAM
+- 50GB+ SSD storage
+- Dedicated Dante NIC (Intel i210/i350 recommended)
+- PTP-capable switch for AoIP networks
+- UPS for critical operations
+
+## Project Status
+
+**Current Version**: 1.0.0-alpha
+
+**Implemented**:
+- ✅ Python FastAPI backend with REST API
+- ✅ React + TypeScript Web UI
+- ✅ Flow lifecycle management
+- ✅ Device discovery (ALSA/USB)
+- ✅ StereoTool preset/license management
+- ✅ Liquidsoap script generation
+- ✅ FFmpeg SRT transport wrappers
+- ✅ Systemd service templates
+- ✅ Installation scripts for Debian 13
+
+**In Development**:
+- 🚧 Inferno AoIP integration (testing required)
+- 🚧 GPIO daemon (TCP/HTTP)
+- 🚧 Metadata service (WebSocket)
+- 🚧 Prometheus metrics exporter
+- 🚧 Grafana dashboards
+- 🚧 Flow creation UI
+- 🚧 Real-time monitoring UI
 
 ## License
 
-[Your License Here]
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## Contributing
 

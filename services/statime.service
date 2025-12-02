@@ -1,0 +1,20 @@
+[Unit]
+Description=Statime PTP Daemon
+Documentation=https://gitlab.com/lumifaza/inferno
+Before=inferno.service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/inferno/bin/statime -c /opt/inferno/config/inferno-ptpv1.toml
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

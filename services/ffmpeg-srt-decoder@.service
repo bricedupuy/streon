@@ -1,0 +1,28 @@
+[Unit]
+Description=FFmpeg SRT Decoder for Flow %i
+Documentation=https://ffmpeg.org/
+After=network.target
+
+[Service]
+Type=simple
+User=streon
+Group=audio
+WorkingDirectory=/opt/streon/flows/%i
+
+# Use wrapper script that reads Flow config and launches FFmpeg decoder
+ExecStart=/opt/streon/scripts/ffmpeg-decoder-wrapper.sh %i
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/streon/ffmpeg-decoder-%i.log
+StandardError=append:/var/log/streon/ffmpeg-decoder-%i.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=false
+
+# Real-time priority
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target
