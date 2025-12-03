@@ -6,20 +6,20 @@ from datetime import datetime
 
 
 class StereoToolLicense(BaseModel):
-    """StereoTool license file information"""
+    """StereoTool license key information"""
     id: str = Field(..., description="Unique license identifier")
-    filename: str = Field(..., description="Original filename")
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
-    file_size: int = Field(..., description="File size in bytes")
+    name: str = Field(..., description="Friendly name for this license")
+    license_key: str = Field(..., description="License key (partial, for display)")
+    added_at: datetime = Field(default_factory=datetime.utcnow)
     is_valid: bool = Field(default=True, description="License validation status")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "id": "lic_abc123",
-                "filename": "stereotool_license.key",
-                "uploaded_at": "2025-12-02T10:00:00Z",
-                "file_size": 1024,
+                "name": "Main Studio License",
+                "license_key": "ST-1234-5678-ABCD...",
+                "added_at": "2025-12-02T10:00:00Z",
                 "is_valid": True
             }
         }

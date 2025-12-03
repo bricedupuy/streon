@@ -15,18 +15,18 @@ stereotool_mgr = StereoToolManager()
 
 
 @router.post("/stereotool/licenses", response_model=StereoToolLicense)
-async def upload_license(file: UploadFile = File(...)):
+async def add_license(license_key: str = Form(...), name: str = Form(...)):
     """
-    Upload a StereoTool license file
+    Add a StereoTool license key
 
-    - **file**: License file to upload
+    - **license_key**: The license key string (text)
+    - **name**: Friendly name for this license
     """
     try:
-        content = await file.read()
-        license = await stereotool_mgr.upload_license(content, file.filename or "license.key")
+        license = await stereotool_mgr.add_license(license_key, name)
         return license
     except Exception as e:
-        logger.error(f"Error uploading license: {e}")
+        logger.error(f"Error adding license: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

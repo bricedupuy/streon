@@ -8,7 +8,7 @@ Streon is a Linux-based, modular audio engine designed for professional radio op
 
 - **Multi-Flow Architecture** - Unlimited concurrent, independent audio pipelines
 - **Liquidsoap 2.4.0** - Professional audio processing with StereoTool integration
-- **SRT Transport** - Opus/AAC/PCM over SRT with adaptive bitrate
+- **SRT Transport** - Opus/AAC/PCM over SRT with configurable bitrate and FEC
 - **Dante/AES67** - Professional AoIP integration via Inferno
 - **Web UI** - Complete configuration and monitoring interface
 - **GPIO Engine** - Per-Flow TCP/HTTP automation control
@@ -126,7 +126,7 @@ Each Flow includes:
 
 Streon supports StereoTool for broadcast audio processing:
 
-1. Upload your StereoTool license via Web UI (Settings → StereoTool)
+1. Add your StereoTool license key via Web UI (Settings → StereoTool → paste license text)
 2. Upload preset files (.sts) via Web UI
 3. Assign presets to Flows in Flow configuration
 
@@ -201,7 +201,7 @@ Access monitoring dashboards:
 - ✅ Flow lifecycle management (create, start, stop, restart, delete)
 - ✅ Flow creation/editing UI (comprehensive form)
 - ✅ Device discovery (ALSA/USB/Dante)
-- ✅ StereoTool preset/license management (upload, list, assign)
+- ✅ StereoTool license input (text-based) and preset management (upload, list, assign)
 - ✅ Liquidsoap script generation (Jinja2 templates)
 - ✅ FFmpeg SRT transport wrappers (Opus/AAC/PCM)
 - ✅ GPIO daemon (TCP/HTTP automation control)
@@ -209,9 +209,9 @@ Access monitoring dashboards:
 - ✅ Prometheus metrics exporter (25+ metrics)
 - ✅ Systemd service templates (7 services)
 - ✅ Installation scripts for Debian 13
+- ✅ Real-time monitoring dashboard UI with VU meters and SRT stats
 
 **In Development**:
-- 🚧 Real-time monitoring dashboard UI (audio meters, SRT stats)
 - 🚧 Grafana dashboards (JSON definitions)
 - 🚧 Dante/Inferno AoIP integration (hardware testing required)
 - 🚧 Dante control panel UI

@@ -52,34 +52,34 @@ class StereoToolManager:
 
     # License management
 
-    async def upload_license(self, file_content: bytes, filename: str) -> StereoToolLicense:
-        """Upload a StereoTool license file"""
+    async def add_license(self, license_key: str, name: str) -> StereoToolLicense:
+        """Add a StereoTool license key (text string)"""
         license_id = f"lic_{uuid.uuid4().hex[:12]}"
-        license_path = self.licenses_dir / f"{license_id}.key"
+        license_path = self.licenses_dir / f"{license_id}.txt"
 
         try:
-            # Save file
-            with open(license_path, 'wb') as f:
-                f.write(file_content)
+            # Save license key to text file
+            with open(license_path, 'w') as f:
+                f.write(license_key.strip())
 
             # Create license record
             license = StereoToolLicense(
                 id=license_id,
-                filename=filename,
-                uploaded_at=datetime.utcnow(),
-                file_size=len(file_content),
-                is_valid=True  # TODO: Implement license validation
+                name=name,
+                license_key=license_key[:20] + "..." if len(license_key) > 20 else license_key,  # Partial key for display
+                added_at=datetime.utcnow(),
+                is_valid=True  # TODO: Implement license validation with StereoTool
             )
 
             # Save metadata
             self.metadata["licenses"][license_id] = license.model_dump()
             self._save_metadata()
 
-            logger.info(f"Uploaded license: {license_id}")
+            logger.info(f"Added license: {name} ({license_id})")
             return license
 
         except Exception as e:
-            logger.error(f"Error uploading license: {e}")
+            logger.error(f"Error adding license: {e}")
             raise
 
     def list_licenses(self) -> List[StereoToolLicense]:
@@ -100,7 +100,7 @@ class StereoToolManager:
 
         try:
             # Delete file
-            license_path = self.licenses_dir / f"{license_id}.key"
+            license_path = self.licenses_dir / f"{license_id}.txt"
             if license_path.exists():
                 license_path.unlink()
 

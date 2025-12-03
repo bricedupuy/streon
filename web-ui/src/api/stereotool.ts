@@ -2,9 +2,9 @@ import { apiClient } from './client'
 
 export interface StereoToolLicense {
   id: string
-  filename: string
-  uploaded_at: string
-  file_size: number
+  name: string
+  license_key: string  // Partial key for display
+  added_at: string
   is_valid: boolean
 }
 
@@ -20,9 +20,10 @@ export interface StereoToolPreset {
 
 export const stereoToolApi = {
   // Licenses
-  uploadLicense: async (file: File): Promise<StereoToolLicense> => {
+  addLicense: async (licenseKey: string, name: string): Promise<StereoToolLicense> => {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('license_key', licenseKey)
+    formData.append('name', name)
     const response = await apiClient.post<StereoToolLicense>('/stereotool/licenses', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

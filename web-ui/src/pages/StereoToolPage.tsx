@@ -40,17 +40,29 @@ export default function StereoToolPage() {
     }
   }
 
-  const handleLicenseUpload = async (file: File) => {
+  const handleAddLicense = async (licenseKey: string, name: string) => {
     setUploading(true)
     try {
-      await stereoToolApi.uploadLicense(file)
+      await stereoToolApi.addLicense(licenseKey, name)
       await fetchData()
-      alert('License uploaded successfully!')
+      alert('License added successfully!')
     } catch (error) {
-      console.error('Error uploading license:', error)
-      alert('Failed to upload license')
+      console.error('Error adding license:', error)
+      alert('Failed to add license')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleDeleteLicense = async (licenseId: string) => {
+    if (!confirm('Are you sure you want to delete this license?')) return
+
+    try {
+      await stereoToolApi.deleteLicense(licenseId)
+      await fetchData()
+    } catch (error) {
+      console.error('Error deleting license:', error)
+      alert('Failed to delete license')
     }
   }
 
@@ -89,29 +101,38 @@ export default function StereoToolPage() {
       <div className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Licenses</h2>
         <div className="bg-gray-800 rounded-lg p-6">
-          <LicenseUpload onUpload={handleLicenseUpload} uploading={uploading} />
+          <LicenseInput onAdd={handleAddLicense} uploading={uploading} />
 
           {licenses.length > 0 ? (
             <div className="mt-6">
-              <h3 className="text-lg font-medium mb-3">Uploaded Licenses</h3>
+              <h3 className="text-lg font-medium mb-3">Added Licenses</h3>
               <div className="space-y-2">
                 {licenses.map((license) => (
                   <div key={license.id} className="bg-gray-700 rounded p-4 flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{license.filename}</p>
-                      <p className="text-sm text-gray-400">
-                        {new Date(license.uploaded_at).toLocaleDateString()} • {(license.file_size / 1024).toFixed(1)} KB
+                    <div className="flex-1">
+                      <p className="font-medium">{license.name}</p>
+                      <p className="text-sm text-gray-400 font-mono">{license.license_key}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Added: {new Date(license.added_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className={`px-3 py-1 rounded ${license.is_valid ? 'bg-green-600' : 'bg-red-600'}`}>
-                      {license.is_valid ? 'Valid' : 'Invalid'}
+                    <div className="flex items-center gap-3">
+                      <div className={`px-3 py-1 rounded ${license.is_valid ? 'bg-green-600' : 'bg-red-600'}`}>
+                        {license.is_valid ? 'Valid' : 'Invalid'}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteLicense(license.id)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <p className="text-gray-400 mt-4">No licenses uploaded yet</p>
+            <p className="text-gray-400 mt-4">No licenses added yet</p>
           )}
         </div>
       </div>
@@ -176,7 +197,60 @@ export default function StereoToolPage() {
   )
 }
 
-function LicenseUpload({ onUpload, uploading }: { onUpload: (file: File) => void; uploading: boolean }) {
+function LicenseInput({ onAdd, uploading }: { onAdd: (licenseKey: string, name: string) => void; uploading: boolean }) {
+  const [licenseKey, setLicenseKey] = useState('')
+  const [name, setName] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!licenseKey.trim() || !name.trim()) {
+      alert('Please provide both license key and name')
+      return
+    }
+    onAdd(licenseKey, name)
+    setLicenseKey('')
+    setName('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">License Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Main Studio License"
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded focus:border-blue-500 focus:outline-none"
+          disabled={uploading}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">License Key</label>
+        <textarea
+          value={licenseKey}
+          onChange={(e) => setLicenseKey(e.target.value)}
+          placeholder="Paste your StereoTool license key here..."
+          rows={3}
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded focus:border-blue-500 focus:outline-none font-mono text-sm"
+          disabled={uploading}
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={uploading || !licenseKey.trim() || !name.trim()}
+        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {uploading ? 'Adding...' : 'Add License'}
+      </button>
+    </form>
+  )
+}
+
+// Keep the old LicenseUpload component for reference but rename it
+function OldLicenseUpload_Unused({ onUpload, uploading }: { onUpload: (file: File) => void; uploading: boolean }) {
   const [dragActive, setDragActive] = useState(false)
 
   const handleDrag = (e: React.DragEvent) => {
