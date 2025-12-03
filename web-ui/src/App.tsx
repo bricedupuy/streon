@@ -6,6 +6,7 @@ import DevicesPage from './pages/DevicesPage'
 import StereoToolPage from './pages/StereoToolPage'
 import InfernoPage from './pages/InfernoPage'
 import MonitoringPage from './pages/MonitoringPage'
+import NetworkPage from './pages/NetworkPage'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/stereotool" element={<StereoToolPage />} />
           <Route path="/inferno" element={<InfernoPage />} />
           <Route path="/monitoring" element={<MonitoringPage />} />
+          <Route path="/network" element={<NetworkPage />} />
         </Routes>
       </Layout>
     </Router>

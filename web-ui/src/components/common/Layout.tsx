@@ -14,6 +14,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/devices', label: 'Devices', icon: '🎛️' },
     { path: '/stereotool', label: 'StereoTool', icon: '🎵' },
     { path: '/inferno', label: 'Inferno AoIP', icon: '🌐' },
+    { path: '/network', label: 'Network', icon: '🔌' },
     { path: '/monitoring', label: 'Monitoring', icon: '📈' },
   ]
 
