@@ -210,9 +210,9 @@ Access monitoring dashboards:
 - ✅ Systemd service templates (7 services)
 - ✅ Installation scripts for Debian 13
 - ✅ Real-time monitoring dashboard UI with VU meters and SRT stats
+- ✅ Grafana dashboards with Flow, System, and Inferno monitoring
 
 **In Development**:
-- 🚧 Grafana dashboards (JSON definitions)
 - 🚧 Dante/Inferno AoIP integration (hardware testing required)
 - 🚧 Dante control panel UI
 - 🚧 Network configuration UI
