@@ -98,6 +98,10 @@ prompt_configuration() {
     log_info "Configuration Options:"
     echo ""
 
+    read -p "Use pre-built binaries? (Faster installation) (Y/n): " -n 1 -r USE_BINARIES
+    echo
+    USE_BINARIES=${USE_BINARIES:-y}
+
     read -p "Install Inferno AoIP (Dante/AES67 support)? (y/N): " -n 1 -r INSTALL_INFERNO
     echo
     INSTALL_INFERNO=${INSTALL_INFERNO:-n}
@@ -124,6 +128,7 @@ prompt_configuration() {
     echo "  - Install directory: $INSTALL_DIR"
     echo "  - Config directory: $CONFIG_DIR"
     echo "  - User: $USER"
+    echo "  - Use pre-built binaries: $([ "$USE_BINARIES" == "y" ] || [ "$USE_BINARIES" == "Y" ] && echo 'Yes (faster)' || echo 'No (build from source)')"
     echo "  - Inferno AoIP: $([ "$INSTALL_INFERNO" == "y" ] || [ "$INSTALL_INFERNO" == "Y" ] && echo 'Yes' || echo 'No')"
     if [[ $INSTALL_INFERNO =~ ^[Yy]$ ]]; then
         echo "    - Dante NIC: $DANTE_NIC"
@@ -155,20 +160,32 @@ main() {
     log_info "Phase 1/8: Installing system dependencies..."
     bash "$(dirname "$0")/dependencies.sh"
 
-    # Phase 2: Liquidsoap 2.4.0
-    log_info "Phase 2/8: Building Liquidsoap 2.4.0..."
-    bash "$(dirname "$0")/liquidsoap-build.sh" "$INSTALL_DIR"
+    # Phase 2-4: Install binaries (pre-built or build from source)
+    if [[ $USE_BINARIES =~ ^[Yy]$ ]]; then
+        log_info "Phase 2/8: Downloading pre-built binaries (faster)..."
 
-    # Phase 3: FFmpeg with SRT
-    log_info "Phase 3/8: Building FFmpeg with SRT support..."
-    bash "$(dirname "$0")/ffmpeg-build.sh" "$INSTALL_DIR"
+        # Download FFmpeg
+        log_info "  - Downloading FFmpeg..."
+        export DOWNLOAD_FFMPEG=y
+        export DOWNLOAD_LIQUIDSOAP=y
+        export DOWNLOAD_INFERNO=$([ "$INSTALL_INFERNO" == "y" ] || [ "$INSTALL_INFERNO" == "Y" ] && echo 'y' || echo 'n')
+        bash "$(dirname "$0")/download-binaries.sh" "$INSTALL_DIR"
 
-    # Phase 4: Inferno (optional)
-    if [[ $INSTALL_INFERNO =~ ^[Yy]$ ]]; then
-        log_info "Phase 4/8: Installing Inferno AoIP..."
-        bash "$(dirname "$0")/inferno-setup.sh" "$DANTE_NIC" "$CONTROL_NIC"
+        log_info "Phase 3/8: Skipped (using pre-built binaries)"
+        log_info "Phase 4/8: Skipped (using pre-built binaries)"
     else
-        log_info "Phase 4/8: Skipping Inferno AoIP installation"
+        log_info "Phase 2/8: Building Liquidsoap 2.4.0 from source..."
+        bash "$(dirname "$0")/liquidsoap-build.sh" "$INSTALL_DIR"
+
+        log_info "Phase 3/8: Building FFmpeg with SRT support from source..."
+        bash "$(dirname "$0")/ffmpeg-build.sh" "$INSTALL_DIR"
+
+        if [[ $INSTALL_INFERNO =~ ^[Yy]$ ]]; then
+            log_info "Phase 4/8: Building Inferno AoIP from source..."
+            bash "$(dirname "$0")/inferno-setup.sh" "$DANTE_NIC" "$CONTROL_NIC"
+        else
+            log_info "Phase 4/8: Skipping Inferno AoIP installation"
+        fi
     fi
 
     # Phase 5: Python controller

@@ -42,13 +42,20 @@ sudo ./install/debian-13-install.sh
 
 The installer will:
 1. Install system dependencies
-2. Build Liquidsoap 2.4.0 from source
-3. Build FFmpeg with SRT support
-4. Optionally install Inferno AoIP (Dante/AES67)
-5. Set up Python controller with FastAPI
-6. Install systemd services
-7. Optionally install Prometheus + Grafana
-8. Create initial configuration
+2. Download pre-built binaries OR build from source (user choice)
+   - Liquidsoap 2.4.0
+   - FFmpeg with SRT support
+   - Inferno AoIP (optional, for Dante/AES67)
+3. Set up Python controller with FastAPI
+4. Install systemd services
+5. Optionally install Prometheus + Grafana
+6. Create initial configuration
+
+**Installation Time:**
+- With pre-built binaries: ~5 minutes (recommended)
+- Building from source: ~45 minutes
+
+**Note:** Pre-built binaries are available for x86_64 and aarch64. See [Binary Distribution Guide](docs/BINARY_DISTRIBUTION.md) for details.
 
 After installation:
 

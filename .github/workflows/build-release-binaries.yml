@@ -1,0 +1,166 @@
+name: Build Release Binaries
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-x86_64:
+    name: Build x86_64 binaries
+    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 (compatible with Debian 13)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git cmake pkg-config autoconf automake libtool \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            libx264-dev libx265-dev libvpx-dev libopus-dev libfdk-aac-dev \
+            libsrt-gnutls-dev libmp3lame-dev libvorbis-dev \
+            libssl-dev libsamplerate0-dev libmad0-dev libfaad-dev \
+            opam ocaml wget curl
+
+      - name: Build release binaries
+        run: |
+          chmod +x install/build-release-binaries.sh
+          # Auto-answer "yes" to all prompts
+          echo -e "y\ny\ny\n" | sudo ./install/build-release-binaries.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: streon-x86_64-binaries
+          path: release-binaries/*
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-binaries/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-aarch64:
+    name: Build aarch64 binaries
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build in Docker (aarch64)
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            debian:13 \
+            bash -c "
+              apt-get update && \
+              apt-get install -y \
+                build-essential git cmake pkg-config autoconf automake libtool \
+                libasound2-dev libpulse-dev libjack-jackd2-dev \
+                libx264-dev libx265-dev libvpx-dev libopus-dev libfdk-aac-dev \
+                libsrt-gnutls-dev libmp3lame-dev libvorbis-dev \
+                libssl-dev libsamplerate0-dev libmad0-dev libfaad-dev \
+                opam ocaml wget curl && \
+              chmod +x install/build-release-binaries.sh && \
+              echo -e 'y\ny\ny\n' | ./install/build-release-binaries.sh
+            "
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: streon-aarch64-binaries
+          path: release-binaries/*
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-binaries/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-checksums:
+    name: Create combined checksums
+    needs: [build-x86_64, build-aarch64]
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'release'
+
+    steps:
+      - name: Download x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: streon-x86_64-binaries
+          path: binaries/
+
+      - name: Download aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: streon-aarch64-binaries
+          path: binaries/
+
+      - name: Create combined manifest
+        run: |
+          cd binaries
+          cat > RELEASE_NOTES.md <<EOF
+          # Streon ${{ github.event.release.tag_name }}
+
+          Pre-built binaries for fast installation.
+
+          ## Available Architectures
+
+          - **x86_64** (Intel/AMD 64-bit)
+          - **aarch64** (ARM 64-bit, e.g., Raspberry Pi 4/5, NVIDIA Jetson)
+
+          ## Installation
+
+          \`\`\`bash
+          # Clone repository
+          git clone https://github.com/bricedupuy/streon.git
+          cd streon
+
+          # Run installer (will auto-download binaries)
+          sudo ./install/debian-13-install.sh
+          \`\`\`
+
+          ## What's Included
+
+          - **FFmpeg 6.1** with SRT, Opus, AAC support
+          - **Liquidsoap 2.4.0** with StereoTool support
+          - **Inferno AoIP** (statime, inferno, libasound_pcm_inferno.so)
+
+          ## Verification
+
+          Verify checksums before installation:
+          \`\`\`bash
+          sha256sum -c *.sha256
+          \`\`\`
+
+          ## Documentation
+
+          - [Installation Guide](https://github.com/bricedupuy/streon#quick-start)
+          - [Binary Distribution Guide](docs/BINARY_DISTRIBUTION.md)
+          - [Full Documentation](https://github.com/bricedupuy/streon)
+
+          ## Support
+
+          Report issues: https://github.com/bricedupuy/streon/issues
+          EOF
+
+      - name: Upload release notes
+        uses: softprops/action-gh-release@v1
+        with:
+          files: binaries/RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
