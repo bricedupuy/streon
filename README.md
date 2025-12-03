@@ -211,11 +211,11 @@ Access monitoring dashboards:
 - ✅ Installation scripts for Debian 13
 - ✅ Real-time monitoring dashboard UI with VU meters and SRT stats
 - ✅ Grafana dashboards with Flow, System, and Inferno monitoring
+- ✅ Inferno AoIP control panel UI with PTP monitoring and config editor
 
 **In Development**:
 - 🚧 Dante/Inferno AoIP integration (hardware testing required)
-- 🚧 Dante control panel UI
-- 🚧 Network configuration UI
+- 🚧 Network configuration UI (interface settings, routing, multicast)
 
 ## License
 
