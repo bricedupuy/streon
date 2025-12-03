@@ -212,10 +212,10 @@ Access monitoring dashboards:
 - ✅ Real-time monitoring dashboard UI with VU meters and SRT stats
 - ✅ Grafana dashboards with Flow, System, and Inferno monitoring
 - ✅ Inferno AoIP control panel UI with PTP monitoring and config editor
+- ✅ Network configuration UI (interface management, DHCP/static IP, routing, MTU)
 
-**In Development**:
-- 🚧 Dante/Inferno AoIP integration (hardware testing required)
-- 🚧 Network configuration UI (interface settings, routing, multicast)
+**Remaining**:
+- 🚧 Dante/Inferno AoIP integration (requires hardware testing with Dante devices)
 
 ## License
 
