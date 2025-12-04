@@ -19,6 +19,11 @@ class FlowInput(BaseModel):
     # SRT-specific fields
     srt_url: Optional[str] = Field(None, description="SRT URL for SRT inputs")
 
+    # GPIO extraction (per-input)
+    gpio_extract: bool = Field(default=False, description="Extract GPIO data from this input (SRT only)")
+    gpio_output_tcp_host: Optional[str] = Field(None, description="TCP host for extracted GPIO output")
+    gpio_output_tcp_port: Optional[int] = Field(None, description="TCP port for extracted GPIO output")
+
     # File-specific fields
     file_path: Optional[str] = Field(None, description="File path for file inputs")
 
@@ -66,6 +71,10 @@ class SRTOutput(BaseModel):
     bitrate_kbps: int = Field(default=128, description="Bitrate in kbps")
     container: Literal["matroska", "mpegts"] = Field(default="matroska", description="Container format")
 
+    # GPIO embedding (per-output)
+    gpio_embed: bool = Field(default=False, description="Embed GPIO data in this SRT output")
+    gpio_input_tcp_port: Optional[int] = Field(None, description="TCP port to receive GPIO for embedding")
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -86,6 +95,10 @@ class ALSAOutput(BaseModel):
     device: str = Field(..., description="ALSA device name")
     channels: int = Field(default=2, description="Number of channels")
     sample_rate: int = Field(default=48000, description="Sample rate in Hz")
+
+    # GPIO routing (per-output)
+    gpio_output_tcp_host: Optional[str] = Field(None, description="TCP host for GPIO output (for Dante outputs)")
+    gpio_output_tcp_port: Optional[int] = Field(None, description="TCP port for GPIO output")
 
 
 class OutputsConfig(BaseModel):
