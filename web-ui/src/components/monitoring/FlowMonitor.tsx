@@ -37,8 +37,10 @@ export default function FlowMonitor({ flowId }: FlowMonitorProps) {
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
-    // Connect to metadata WebSocket
-    const wsUrl = `ws://localhost:8000/api/v1/metadata/stream`
+    // Connect to metadata WebSocket - use current host for production
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsHost = import.meta.env.VITE_API_HOST || window.location.host
+    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/metadata/stream`
     const ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {
@@ -70,35 +72,35 @@ export default function FlowMonitor({ flowId }: FlowMonitorProps) {
 
     wsRef.current = ws
 
-    // Simulated audio level updates (in production, this would come from Liquidsoap telnet)
-    const audioInterval = setInterval(() => {
-      // Simulate realistic audio levels with some variance
-      const randomPeak = () => -20 + Math.random() * 15
-      const randomRms = () => -30 + Math.random() * 15
-
-      setAudioLevels({
-        peak_l: randomPeak(),
-        peak_r: randomPeak(),
-        rms_l: randomRms(),
-        rms_r: randomRms()
-      })
+    // Fetch audio levels from API
+    const audioInterval = setInterval(async () => {
+      try {
+        const response = await apiClient.get(`/flows/${flowId}/audio-levels`)
+        if (response.data) {
+          setAudioLevels(response.data)
+          // Update silence duration based on audio levels
+          if (response.data.peak_l < -50 && response.data.peak_r < -50) {
+            setSilenceDuration((prev: number) => prev + 0.1)
+          } else {
+            setSilenceDuration(0)
+          }
+        }
+      } catch (error) {
+        // API not available - use default values (silence)
+        console.debug('Audio levels API not available')
+      }
     }, 100) // Update 10 times per second
 
     // Fetch SRT stats periodically
     const srtInterval = setInterval(async () => {
       try {
-        // In production, this would be a real endpoint
-        // const response = await apiClient.get(`/flows/${flowId}/srt-stats`)
-        // setSrtStats(response.data)
-
-        // Simulated SRT stats
-        setSrtStats({
-          rtt_ms: 15 + Math.random() * 10,
-          packet_loss: Math.random() * 0.001,
-          bitrate_kbps: 128 + Math.random() * 5
-        })
+        const response = await apiClient.get(`/flows/${flowId}/srt-stats`)
+        if (response.data) {
+          setSrtStats(response.data)
+        }
       } catch (error) {
-        console.error('Error fetching SRT stats:', error)
+        // SRT stats not available for this flow
+        console.debug('SRT stats not available')
       }
     }, 2000)
 

@@ -3,11 +3,49 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 import logging
+import subprocess
+import asyncio
 
 from models.device import AudioDevice, DeviceUpdateRequest, DeviceScanResponse
 from core.device_manager import DeviceManager
 
 logger = logging.getLogger(__name__)
+
+
+async def play_test_tone(device_name: str, duration_seconds: int = 3) -> bool:
+    """
+    Play a test tone on the specified ALSA device.
+    Returns True if successful.
+    """
+    try:
+        # Use speaker-test for a quick sine wave test
+        proc = await asyncio.create_subprocess_exec(
+            'speaker-test',
+            '-D', device_name,
+            '-c', '2',  # stereo
+            '-t', 'sine',  # sine wave
+            '-f', '1000',  # 1kHz
+            '-l', '1',  # 1 iteration
+            '-p', str(duration_seconds),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=duration_seconds + 5)
+
+        if proc.returncode != 0:
+            logger.warning(f"speaker-test failed: {stderr.decode()}")
+            return False
+        return True
+
+    except asyncio.TimeoutError:
+        logger.warning("Device test timed out")
+        return False
+    except FileNotFoundError:
+        logger.error("speaker-test not found, install alsa-utils")
+        return False
+    except Exception as e:
+        logger.error(f"Device test error: {e}")
+        return False
 
 router = APIRouter()
 device_mgr = DeviceManager()
@@ -81,10 +119,17 @@ async def test_device(device_id: str):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    # TODO: Implement device test (play tone using aplay/speaker-test)
+    # Play a 3-second test tone on the device
+    success = await play_test_tone(device.alsa_device, duration_seconds=3)
 
-    return {
-        "message": "Device test initiated",
-        "device_id": device_id,
-        "note": "Device test not yet implemented"
-    }
+    if success:
+        return {
+            "message": "Device test completed successfully",
+            "device_id": device_id,
+            "test_duration_seconds": 3
+        }
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Device test failed - check device connection and ALSA configuration"
+        )

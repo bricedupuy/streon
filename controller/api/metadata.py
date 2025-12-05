@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from typing import Dict, List
 from pydantic import BaseModel
 
-from controller.core.metadata_service import metadata_service, MetadataUpdate
+from core.metadata_service import metadata_service, MetadataUpdate
 
 router = APIRouter()
 

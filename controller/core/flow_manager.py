@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 class FlowManager:
     """Manages Flow lifecycle, Liquidsoap, and FFmpeg processes"""
 
-    def __init__(self, streon_root: str = "/opt/streon"):
+    def __init__(
+        self,
+        streon_root: str = "/opt/streon",
+        liquidsoap_bin: str = "/opt/streon/liquidsoap/bin/liquidsoap",
+        ffmpeg_bin: str = "/usr/bin/ffmpeg"
+    ):
         self.streon_root = Path(streon_root)
         self.flows_dir = self.streon_root / "flows"
-        self.liquidsoap_templates_dir = self.streon_root.parent.parent / "Code" / "streon-claude" / "liquidsoap" / "templates"
+        self.liquidsoap_templates_dir = self.streon_root / "liquidsoap" / "templates"
+        self.liquidsoap_bin = liquidsoap_bin
+        self.ffmpeg_bin = ffmpeg_bin
         self.config_mgr = ConfigManager()
         self.stereotool_mgr = StereoToolManager(str(self.streon_root))
 
@@ -120,7 +127,7 @@ class FlowManager:
             raise ValueError(f"Flow already running: {flow_id}")
 
         # Start Liquidsoap
-        liquidsoap_pid = self._start_liquidsoap(flow_id)
+        liquidsoap_pid = self._start_liquidsoap(flow_id, flow_config)
 
         # Start FFmpeg encoders (if any SRT outputs)
         ffmpeg_pids = []
@@ -310,20 +317,23 @@ settings.log.level.set(4)
 
         return script_content
 
-    def _start_liquidsoap(self, flow_id: str) -> int:
+    def _start_liquidsoap(self, flow_id: str, flow_config: FlowConfig = None) -> int:
         """Start Liquidsoap process"""
         flow_dir = self.flows_dir / flow_id
         script_path = flow_dir / "script.liq"
         log_path = flow_dir / "liquidsoap.log"
 
-        # Create FIFO if needed
-        fifo_path = f"/tmp/streon_{flow_id}.fifo"
-        if not os.path.exists(fifo_path):
-            os.mkfifo(fifo_path)
+        # Create FIFOs for each SRT output
+        if flow_config and flow_config.outputs.srt:
+            for idx in range(len(flow_config.outputs.srt)):
+                fifo_path = f"/tmp/streon_{flow_id}_srt{idx}.fifo"
+                if not os.path.exists(fifo_path):
+                    os.mkfifo(fifo_path)
+                    # Set permissions so both liquidsoap and ffmpeg can access
+                    os.chmod(fifo_path, 0o666)
 
         # Start Liquidsoap
-        # TODO: Use actual liquidsoap binary path
-        cmd = ["liquidsoap", str(script_path)]
+        cmd = [self.liquidsoap_bin, str(script_path)]
 
         with open(log_path, 'a') as log_file:
             process = subprocess.Popen(
@@ -338,12 +348,13 @@ settings.log.level.set(4)
     def _start_ffmpeg_encoders(self, flow_id: str, flow_config: FlowConfig) -> List[int]:
         """Start FFmpeg encoder processes for SRT outputs"""
         pids = []
-        fifo_path = f"/tmp/streon_{flow_id}.fifo"
 
         for idx, srt_output in enumerate(flow_config.outputs.srt):
+            # Each SRT output has its own FIFO
+            fifo_path = f"/tmp/streon_{flow_id}_srt{idx}.fifo"
+
             # Build FFmpeg command
-            # TODO: Use actual ffmpeg binary path
-            cmd = ["ffmpeg", "-f", "wav", "-i", fifo_path]
+            cmd = [self.ffmpeg_bin, "-f", "wav", "-i", fifo_path]
 
             # Audio encoding
             if srt_output.codec == "opus":

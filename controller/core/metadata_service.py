@@ -126,27 +126,48 @@ class FlowMetadataHandler:
         """
         Get current metadata from Liquidsoap telnet interface
 
-        In production, this would connect to Liquidsoap's telnet interface
-        and query for current metadata using commands like:
-        - var.get metadata.artist
-        - var.get metadata.title
+        Connects to Liquidsoap's telnet interface and queries for current metadata.
         """
-        # TODO: Implement actual Liquidsoap telnet connection
-        # For now, return None (no metadata available)
+        try:
+            # Run telnet connection in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, self._sync_get_metadata)
+        except Exception as e:
+            logger.debug(f"Failed to get metadata from Liquidsoap: {e}")
+            return None
 
-        # Example implementation (when Liquidsoap is running):
-        # try:
-        #     tn = telnetlib.Telnet('localhost', self.liquidsoap_telnet_port, timeout=2)
-        #     tn.write(b'var.get metadata.artist\n')
-        #     artist = tn.read_until(b'\n', timeout=1).decode('utf-8').strip()
-        #     tn.write(b'var.get metadata.title\n')
-        #     title = tn.read_until(b'\n', timeout=1).decode('utf-8').strip()
-        #     tn.close()
-        #     return {'artist': artist, 'title': title}
-        # except:
-        #     return None
+    def _sync_get_metadata(self) -> Optional[Dict]:
+        """Synchronous telnet metadata fetch"""
+        try:
+            tn = telnetlib.Telnet('localhost', self.liquidsoap_telnet_port, timeout=2)
 
-        return None
+            # Query for metadata using Liquidsoap's request.metadata command
+            tn.write(b'request.metadata\n')
+            response = tn.read_until(b'END\n', timeout=2).decode('utf-8').strip()
+            tn.close()
+
+            # Parse response - format is typically "key=value" lines
+            metadata = {}
+            for line in response.split('\n'):
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip().lower()
+                    value = value.strip().strip('"')
+                    if key == 'artist':
+                        metadata['artist'] = value
+                    elif key == 'title':
+                        metadata['title'] = value
+                    elif key == 'album':
+                        metadata['album'] = value
+
+            return metadata if metadata else None
+
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            # Liquidsoap not running or telnet not enabled - this is expected
+            return None
+        except Exception as e:
+            logger.debug(f"Telnet metadata error: {e}")
+            return None
 
     def _is_different_metadata(self, update: MetadataUpdate) -> bool:
         """Check if metadata has changed"""
@@ -219,8 +240,9 @@ class MetadataService:
                 with open(flow_file, 'r') as f:
                     flow_config = yaml.safe_load(f)
 
-                flow_id = flow_config['flow']['id']
-                metadata_config = flow_config['flow'].get('metadata', {})
+                # Config is saved at root level by ConfigManager
+                flow_id = flow_config.get('id')
+                metadata_config = flow_config.get('metadata', {})
 
                 if not metadata_config.get('enabled', False):
                     continue

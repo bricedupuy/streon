@@ -1,8 +1,10 @@
 """Flow API endpoints"""
 
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 import logging
+import telnetlib
+import subprocess
 
 from models.flow import (
     FlowConfig,
@@ -16,6 +18,31 @@ from core.flow_manager import FlowManager
 from core.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+def get_liquidsoap_audio_levels(flow_id: str, telnet_port: int = 1234) -> Optional[dict]:
+    """Get audio levels from Liquidsoap telnet interface"""
+    try:
+        tn = telnetlib.Telnet('localhost', telnet_port, timeout=1)
+        tn.write(b'var.get audio_peak_l\n')
+        peak_l = float(tn.read_until(b'\n', timeout=1).decode().strip())
+        tn.write(b'var.get audio_peak_r\n')
+        peak_r = float(tn.read_until(b'\n', timeout=1).decode().strip())
+        tn.close()
+        return {'peak_l': peak_l, 'peak_r': peak_r}
+    except Exception:
+        return None
+
+
+def get_srt_stats(flow_id: str) -> Optional[dict]:
+    """Get SRT transport statistics from FFmpeg"""
+    try:
+        # SRT stats would typically come from parsing FFmpeg's stderr
+        # or using the SRT library's stats API
+        # For now, return None to indicate stats not available
+        return None
+    except Exception:
+        return None
 
 router = APIRouter()
 
@@ -187,14 +214,71 @@ async def get_flow_metrics(flow_id: str):
     if not flow_config:
         raise HTTPException(status_code=404, detail="Flow not found")
 
-    # TODO: Implement metrics collection from Liquidsoap and FFmpeg
-    # For now, return mock data
+    # Get real audio levels from Liquidsoap
+    audio_levels = get_liquidsoap_audio_levels(flow_id)
+    peak_l = audio_levels['peak_l'] if audio_levels else -60.0
+    peak_r = audio_levels['peak_r'] if audio_levels else -60.0
+
+    # Determine if silent (below -50 dBFS)
+    is_silent = peak_l < -50 and peak_r < -50
+
+    # Get SRT stats if available
+    srt_stats = get_srt_stats(flow_id)
+
     return FlowMetrics(
         flow_id=flow_id,
-        audio_peak_left_dbfs=-12.5,
-        audio_peak_right_dbfs=-11.8,
-        is_silent=False,
-        srt_rtt_ms=15.2,
-        srt_packet_loss=0.0001,
-        srt_bitrate_kbps=128.4
+        audio_peak_left_dbfs=peak_l,
+        audio_peak_right_dbfs=peak_r,
+        is_silent=is_silent,
+        srt_rtt_ms=srt_stats.get('rtt_ms') if srt_stats else None,
+        srt_packet_loss=srt_stats.get('packet_loss') if srt_stats else None,
+        srt_bitrate_kbps=srt_stats.get('bitrate_kbps') if srt_stats else None
     )
+
+
+@router.get("/flows/{flow_id}/audio-levels")
+async def get_flow_audio_levels(flow_id: str):
+    """
+    Get real-time audio levels for a Flow
+
+    - **flow_id**: Flow ID
+    """
+    flow_config = config_mgr.load_flow_config(flow_id)
+    if not flow_config:
+        raise HTTPException(status_code=404, detail="Flow not found")
+
+    audio_levels = get_liquidsoap_audio_levels(flow_id)
+    if audio_levels:
+        return {
+            "peak_l": audio_levels['peak_l'],
+            "peak_r": audio_levels['peak_r'],
+            "rms_l": audio_levels['peak_l'] - 10,  # Approximate RMS
+            "rms_r": audio_levels['peak_r'] - 10
+        }
+    else:
+        # Return silence levels if Liquidsoap not responding
+        return {
+            "peak_l": -60.0,
+            "peak_r": -60.0,
+            "rms_l": -60.0,
+            "rms_r": -60.0
+        }
+
+
+@router.get("/flows/{flow_id}/srt-stats")
+async def get_flow_srt_stats(flow_id: str):
+    """
+    Get SRT transport statistics for a Flow
+
+    - **flow_id**: Flow ID
+    """
+    flow_config = config_mgr.load_flow_config(flow_id)
+    if not flow_config:
+        raise HTTPException(status_code=404, detail="Flow not found")
+
+    srt_stats = get_srt_stats(flow_id)
+    if srt_stats:
+        return srt_stats
+    else:
+        # Return null stats if SRT not active
+        raise HTTPException(status_code=404, detail="SRT stats not available")

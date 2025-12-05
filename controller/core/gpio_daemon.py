@@ -6,12 +6,26 @@ Handles TCP/HTTP GPIO input/output for Flow automation
 import asyncio
 import json
 import logging
+import telnetlib
 from datetime import datetime
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Callable, Awaitable
 from aiohttp import web
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# GPIO event types and their actions
+GPIO_EVENTS = {
+    'START': 'Start playback or flow',
+    'STOP': 'Stop playback or flow',
+    'SKIP': 'Skip to next track',
+    'FADE': 'Trigger crossfade',
+    'VOLUME': 'Adjust volume (payload: {"level": 0-100})',
+    'MUTE': 'Mute audio output',
+    'UNMUTE': 'Unmute audio output',
+    'NOW_PLAYING': 'Output event: current metadata',
+    'SILENCE': 'Output event: silence detected',
+}
 
 
 class GPIOEvent:
@@ -52,13 +66,17 @@ class FlowGPIOHandler:
         tcp_input_port: Optional[int] = None,
         http_input_port: Optional[int] = None,
         tcp_output_host: Optional[str] = None,
-        tcp_output_port: Optional[int] = None
+        tcp_output_port: Optional[int] = None,
+        liquidsoap_telnet_port: int = 1234,
+        automation_callback: Optional[Callable[[str, str, Dict], Awaitable[None]]] = None
     ):
         self.flow_id = flow_id
         self.tcp_input_port = tcp_input_port
         self.http_input_port = http_input_port
         self.tcp_output_host = tcp_output_host
         self.tcp_output_port = tcp_output_port
+        self.liquidsoap_telnet_port = liquidsoap_telnet_port
+        self.automation_callback = automation_callback
 
         self.tcp_server: Optional[asyncio.Server] = None
         self.http_app: Optional[web.Application] = None
@@ -67,6 +85,7 @@ class FlowGPIOHandler:
 
         self.event_history: list[GPIOEvent] = []
         self.max_history = 1000
+        self.is_muted = False
 
     async def start(self):
         """Start GPIO handlers for this Flow"""
@@ -222,7 +241,7 @@ class FlowGPIOHandler:
             logger.error(f"Failed to connect TCP GPIO output for Flow {self.flow_id}: {e}")
 
     async def _process_input_event(self, event: GPIOEvent):
-        """Process an incoming GPIO event"""
+        """Process an incoming GPIO event and trigger appropriate actions"""
         # Store in history
         self.event_history.append(event)
         if len(self.event_history) > self.max_history:
@@ -230,13 +249,102 @@ class FlowGPIOHandler:
 
         logger.info(f"GPIO input for Flow {self.flow_id}: {event.event_type} - {event.payload}")
 
-        # TODO: Forward to Flow automation logic
-        # This could trigger actions like:
-        # - START: Start playing a specific track
-        # - STOP: Stop playback
-        # - SKIP: Skip to next track
-        # - FADE: Trigger crossfade
-        # - VOLUME: Adjust volume
+        # Execute automation action based on event type
+        try:
+            if event.event_type == 'START':
+                await self._action_start(event.payload)
+            elif event.event_type == 'STOP':
+                await self._action_stop(event.payload)
+            elif event.event_type == 'SKIP':
+                await self._action_skip(event.payload)
+            elif event.event_type == 'FADE':
+                await self._action_fade(event.payload)
+            elif event.event_type == 'VOLUME':
+                await self._action_volume(event.payload)
+            elif event.event_type == 'MUTE':
+                await self._action_mute()
+            elif event.event_type == 'UNMUTE':
+                await self._action_unmute()
+            else:
+                logger.warning(f"Unknown GPIO event type: {event.event_type}")
+
+            # Call external automation callback if registered
+            if self.automation_callback:
+                await self.automation_callback(self.flow_id, event.event_type, event.payload)
+
+        except Exception as e:
+            logger.error(f"GPIO automation error for Flow {self.flow_id}: {e}")
+
+    async def _action_start(self, payload: Dict):
+        """Handle START event - resume playback or start a specific source"""
+        await self._send_liquidsoap_command('source.skip')  # Skip to start playing
+        logger.info(f"Flow {self.flow_id}: START action executed")
+
+    async def _action_stop(self, payload: Dict):
+        """Handle STOP event - pause/stop playback"""
+        # Mute output as a 'stop' action
+        await self._send_liquidsoap_command('var.set mute = true')
+        logger.info(f"Flow {self.flow_id}: STOP action executed")
+
+    async def _action_skip(self, payload: Dict):
+        """Handle SKIP event - skip to next track"""
+        await self._send_liquidsoap_command('source.skip')
+        logger.info(f"Flow {self.flow_id}: SKIP action executed")
+
+    async def _action_fade(self, payload: Dict):
+        """Handle FADE event - trigger crossfade"""
+        duration_ms = payload.get('duration_ms', 3000)
+        await self._send_liquidsoap_command(f'var.set crossfade_duration = {duration_ms / 1000}')
+        await self._send_liquidsoap_command('source.skip')
+        logger.info(f"Flow {self.flow_id}: FADE action executed (duration: {duration_ms}ms)")
+
+    async def _action_volume(self, payload: Dict):
+        """Handle VOLUME event - adjust output volume"""
+        level = payload.get('level', 100)
+        # Convert 0-100 to 0.0-1.0
+        volume = max(0, min(100, level)) / 100.0
+        await self._send_liquidsoap_command(f'var.set volume = {volume}')
+        logger.info(f"Flow {self.flow_id}: VOLUME action executed (level: {level}%)")
+
+    async def _action_mute(self):
+        """Handle MUTE event"""
+        await self._send_liquidsoap_command('var.set mute = true')
+        self.is_muted = True
+        logger.info(f"Flow {self.flow_id}: MUTE action executed")
+
+    async def _action_unmute(self):
+        """Handle UNMUTE event"""
+        await self._send_liquidsoap_command('var.set mute = false')
+        self.is_muted = False
+        logger.info(f"Flow {self.flow_id}: UNMUTE action executed")
+
+    async def _send_liquidsoap_command(self, command: str) -> Optional[str]:
+        """Send a command to Liquidsoap via telnet"""
+        try:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None,
+                self._sync_send_command,
+                command
+            )
+        except Exception as e:
+            logger.error(f"Failed to send Liquidsoap command for Flow {self.flow_id}: {e}")
+            return None
+
+    def _sync_send_command(self, command: str) -> Optional[str]:
+        """Synchronous telnet command execution"""
+        try:
+            tn = telnetlib.Telnet('localhost', self.liquidsoap_telnet_port, timeout=2)
+            tn.write(f'{command}\n'.encode('utf-8'))
+            response = tn.read_until(b'END\n', timeout=2).decode('utf-8').strip()
+            tn.close()
+            return response
+        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+            logger.debug(f"Liquidsoap telnet not available: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Telnet command error: {e}")
+            return None
 
     async def send_output_event(self, event: GPIOEvent):
         """Send a GPIO output event"""
@@ -305,8 +413,9 @@ class GPIODaemon:
                 with open(flow_file, 'r') as f:
                     flow_config = yaml.safe_load(f)
 
-                flow_id = flow_config['flow']['id']
-                gpio_config = flow_config['flow'].get('gpio', {})
+                # Config is saved at root level by ConfigManager
+                flow_id = flow_config.get('id')
+                gpio_config = flow_config.get('gpio', {})
 
                 if not gpio_config.get('tcp_input', {}).get('enabled') and \
                    not gpio_config.get('http_input', {}).get('enabled') and \

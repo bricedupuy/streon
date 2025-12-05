@@ -195,10 +195,11 @@ main() {
 
     cd "$INSTALL_DIR/controller"
     python3 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    deactivate
+    # Use venv's pip directly instead of sourcing activate script
+    "$INSTALL_DIR/controller/venv/bin/pip" install --upgrade pip
+    "$INSTALL_DIR/controller/venv/bin/pip" install -r requirements.txt
+    # Set proper ownership
+    chown -R "$USER:$USER" "$INSTALL_DIR/controller/venv"
 
     # Phase 6: Systemd services
     log_info "Phase 6/8: Installing systemd services..."

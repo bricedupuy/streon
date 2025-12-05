@@ -93,8 +93,77 @@ export default function FlowEditor({ flowId, onSave, onCancel }: FlowEditorProps
   }
 
   const fetchFlowConfig = async () => {
-    // TODO: Fetch existing Flow configuration for editing
-    // This would load all the form fields with existing values
+    if (!flowId) return
+
+    try {
+      const response = await apiClient.get(`/flows/${flowId}`)
+      const config = response.data.config
+
+      // Populate form with existing values
+      setFlowName(config.name || '')
+      setEnabled(config.enabled ?? true)
+
+      // Input configuration
+      if (config.inputs && config.inputs.length > 0) {
+        const input = config.inputs[0]
+        setInputType(input.type || 'alsa')
+        setInputDevice(input.device || '')
+        setInputChannels(input.channels || 2)
+        setInputSampleRate(input.sample_rate || 48000)
+      }
+
+      // Processing configuration
+      if (config.processing) {
+        if (config.processing.stereotool) {
+          setStereoToolEnabled(config.processing.stereotool.enabled || false)
+          // Extract preset name from path
+          const presetPath = config.processing.stereotool.preset || ''
+          const presetMatch = presetPath.match(/\/([^\/]+)\.sts$/)
+          setSelectedPreset(presetMatch ? presetMatch[1] : '')
+        }
+        if (config.processing.silence_detection) {
+          setSilenceThreshold(config.processing.silence_detection.threshold_dbfs || -50)
+          setSilenceDuration(config.processing.silence_detection.duration_s || 5)
+        }
+      }
+
+      // SRT output configuration
+      if (config.outputs && config.outputs.srt && config.outputs.srt.length > 0) {
+        setSrtEnabled(true)
+        const srt = config.outputs.srt[0]
+        setSrtMode(srt.mode || 'caller')
+        setSrtHost(srt.host || 'localhost')
+        setSrtPort(srt.port || 9000)
+        setSrtLatency(srt.latency_ms || 200)
+        setSrtPassphrase(srt.passphrase || '')
+        setSrtCodec(srt.codec || 'opus')
+        setSrtBitrate(srt.bitrate_kbps || 128)
+        setSrtContainer(srt.container || 'matroska')
+      } else {
+        setSrtEnabled(false)
+      }
+
+      // GPIO configuration
+      if (config.gpio) {
+        if (config.gpio.tcp_input) {
+          setGpioTcpEnabled(config.gpio.tcp_input.enabled || false)
+          setGpioTcpPort(config.gpio.tcp_input.port || 7000)
+        }
+        if (config.gpio.http_input) {
+          setGpioHttpEnabled(config.gpio.http_input.enabled || false)
+          setGpioHttpPort(config.gpio.http_input.port || 8080)
+        }
+      }
+
+      // Metadata configuration
+      if (config.metadata) {
+        setMetadataEnabled(config.metadata.enabled ?? true)
+        setMetadataWebsocket(config.metadata.websocket ?? true)
+      }
+
+    } catch (error) {
+      console.error('Error fetching Flow config:', error)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

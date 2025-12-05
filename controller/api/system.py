@@ -2,13 +2,73 @@
 
 from fastapi import APIRouter, Response
 import psutil
+import subprocess
 from datetime import datetime
 import logging
+from pathlib import Path
 
 from models.config import SystemHealth
 from monitoring.prometheus import metrics_collector
+from core.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+def check_inferno_status() -> tuple[bool, bool]:
+    """
+    Check Inferno daemon status and PTP sync.
+    Returns (inferno_up, ptp_synced)
+    """
+    try:
+        # Check if inferno service is running
+        result = subprocess.run(
+            ['systemctl', 'is-active', 'inferno'],
+            capture_output=True, text=True, timeout=5
+        )
+        inferno_up = result.returncode == 0
+
+        # Check PTP sync status via statime
+        ptp_synced = False
+        if inferno_up:
+            try:
+                # Read statime status file or check via socket
+                statime_status = Path('/run/statime/status')
+                if statime_status.exists():
+                    status_text = statime_status.read_text()
+                    ptp_synced = 'SLAVE' in status_text or 'MASTER' in status_text
+            except Exception:
+                pass
+
+        return inferno_up, ptp_synced
+
+    except Exception as e:
+        logger.debug(f"Error checking Inferno status: {e}")
+        return None, None
+
+
+def count_active_flows() -> int:
+    """Count number of running Flow processes"""
+    try:
+        config_mgr = ConfigManager()
+        flow_ids = config_mgr.list_flows()
+
+        active_count = 0
+        for flow_id in flow_ids:
+            # Check if liquidsoap process exists for this flow
+            try:
+                result = subprocess.run(
+                    ['pgrep', '-f', f'liquidsoap.*{flow_id}'],
+                    capture_output=True, timeout=2
+                )
+                if result.returncode == 0:
+                    active_count += 1
+            except Exception:
+                pass
+
+        return active_count
+    except Exception as e:
+        logger.debug(f"Error counting active flows: {e}")
+        return 0
 
 router = APIRouter()
 
@@ -26,12 +86,11 @@ async def get_system_health():
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
 
-        # TODO: Check Inferno status
-        inferno_up = None
-        ptp_synced = None
+        # Check Inferno/PTP status
+        inferno_up, ptp_synced = check_inferno_status()
 
-        # TODO: Count active Flows
-        active_flows = 0
+        # Count active Flows
+        active_flows = count_active_flows()
 
         health = SystemHealth(
             controller_up=True,

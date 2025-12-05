@@ -59,9 +59,10 @@ source = stereotool(
 {% endif %}
 
 {% if flow.processing.crossfade %}
-# Crossfade
-source = crossfade(
-    duration={{ flow.processing.crossfade_duration_s }},
+# Crossfade between tracks
+source = cross(
+    duration={{ flow.processing.crossfade_duration_s }}.,
+    (fun (a, b) -> add([a, b])),
     source
 )
 {% endif %}

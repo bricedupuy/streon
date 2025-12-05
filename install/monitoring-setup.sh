@@ -153,10 +153,11 @@ EOF
 install_grafana() {
     log_info "Installing Grafana $GRAFANA_VERSION..."
 
-    # Add Grafana repository
+    # Add Grafana repository (using modern approach instead of deprecated apt-key)
     apt-get install -y software-properties-common
-    wget -q -O - https://packages.grafana.com/gpg.key | apt-key add -
-    echo "deb https://packages.grafana.com/oss/deb stable main" | tee /etc/apt/sources.list.d/grafana.list
+    mkdir -p /etc/apt/keyrings
+    wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" | tee /etc/apt/sources.list.d/grafana.list
 
     apt-get update
     apt-get install -y grafana
